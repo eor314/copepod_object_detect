@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 import copy
 import glob
+import pandas as pd
 import os
 from utils.img_proc import get_dim
 
@@ -23,14 +24,13 @@ def read_xml(xmlptf):
     return out
 
 
-def populate_voc(template, outdir, imgptf, bbox, label):
+def populate_voc(template, outdir, img_base, bbox_obj):
     """
     iterate over all the xml files in the annotations directory, consolidate, and copy
-    :param template: xml template to work from
-    :param outdir: path to output directory (where new files are copied)
-    :param imgptf: where the image lives
-    :param bbox: bounding box coordinates [array, each row corresponds to label]
-    :param label: labels corresponding to bboxes and segments [list of ind]
+    :param template: path to xml template to work from [str]
+    :param outdir: path to output directory (VOC parent) [str]
+    :param img_base: image basename [str]
+    :param bbox_obj: bounding box coordinates and label [json]
     """
 
     # read the template
@@ -38,11 +38,14 @@ def populate_voc(template, outdir, imgptf, bbox, label):
 
     # insert folder path
     fold = bs_data.folder
-    fold.string = os.path.split(imgptf)[0]
+    fold.string = os.path.basename(outdir)
 
     # insert filename
     fname = bs_data.filename
-    fname.string = os.path.split(imgptf)[1]
+    fname.string = img_base
+
+    # get the full filepath
+    imgptf = os.path.join(outdir, 'images', img_base)
 
     # get the whole dimensions
     wd, ht = get_dim(imgptf)
@@ -51,14 +54,16 @@ def populate_voc(template, outdir, imgptf, bbox, label):
     height = bs_data.size.height
     height.string = str(ht)
 
+    # read in the bbox and class info
+    tmp = pd.read_json(bbox_obj)
+
     # copy the object tag for however many bounding boxes are in the ROI
     flag = 1
 
     # check that there is more than one labeled region in image
-    if len(bbox.shape) > 1:
-        while flag < bbox.shape[0]:
-            bs_data.annotation.append(copy.copy(bs_data.object))
-            flag += 1
+    while flag < tmp.shape[0]:
+        bs_data.annotation.append(copy.copy(bs_data.object))
+        flag += 1
 
     # select all empty elements in the xml document
     nns = bs_data.select('name:empty')  # list of empty name tags
@@ -67,41 +72,22 @@ def populate_voc(template, outdir, imgptf, bbox, label):
     xmaxs = bs_data.select('xmax:empty')
     ymaxs = bs_data.select('ymax:empty')
 
-    if len(nns) > 1:
-        # bounding box info
-        # for now just select the first tuple and hardcode other into [012221]
-        for ii in range(bbox.shape[0]):
-            # enter the label string
-            name = nns[ii]
-            name.string = label[ii]
-
-            # enter the corresponding bbox location
-            bb = bbox[ii, ::]
-            xmin = xmins[ii]
-            xmin.string = str(bb[1])
-            ymin = ymins[ii]
-            ymin.string = str(bb[0])
-            xmax = xmaxs[ii]
-            xmax.string = str(bb[3])
-            ymax = ymaxs[ii]
-            ymax.string = str(bb[2])
-    else:
-        ii = 0
+    for ii in range(tmp.shape[0]):
         # enter the label string
         name = nns[ii]
-        name.string = label[ii]
+        name.string = tmp['value'][ii]
 
         # enter the corresponding bbox location
         xmin = xmins[ii]
-        xmin.string = str(bbox[1])
+        xmin.string = str(tmp['xmin'][ii])
         ymin = ymins[ii]
-        ymin.string = str(bbox[0])
+        ymin.string = str(tmp['ymin'][ii])
         xmax = xmaxs[ii]
-        xmax.string = str(bbox[3])
+        xmax.string = str(tmp['xmax'][ii])
         ymax = ymaxs[ii]
-        ymax.string = str(bbox[2])
+        ymax.string = str(tmp['ymax'][ii])
 
-    outpath = os.path.join(outdir, os.path.splitext(os.path.basename(imgptf))[0]+'.xml')
+    outpath = os.path.join(outdir, 'annotations', os.path.splitext(os.path.basename(imgptf))[0]+'.xml')
 
     # save it
     with open(outpath, 'w') as ff:
