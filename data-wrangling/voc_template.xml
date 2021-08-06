@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<annotation>
+	<folder></folder>
+	<filename></filename>
+	<source>
+		<database>SPC Pier</database>
+		<annotation>automated copepods</annotation>
+		<image>SPC</image>
+	</source>
+	<size>
+		<width></width>
+		<height></height>
+		<depth>1</depth>
+	</size>
+	<segmented>1</segmented>
+	<object>
+		<name></name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin></xmin>
+			<ymin></ymin>
+			<xmax></xmax>
+			<ymax></ymax>
+		</bndbox>
+	</object>
+</annotation>
