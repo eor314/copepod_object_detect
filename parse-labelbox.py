@@ -13,6 +13,7 @@ import pandas as pd
 import progressbar
 from tqdm import tqdm
 import requests
+import shutil
 from utils.voc_tools import populate_voc
 
 
@@ -76,9 +77,14 @@ if __name__ == '__main__':
     if not os.path.exists(img_dir):
         os.mkdir(img_dir)
 
+    img_base = [os.path.basename(line) for line in glob.glob(os.path.join(img_dir,'*.jpg'))]
+
     # make annotation dir
     ann_dir = os.path.join(out_dir, 'annotations')
     if not os.path.exists(ann_dir):
+        os.mkdir(ann_dir)
+    else:
+        shutil.rmtree(ann_dir)
         os.mkdir(ann_dir)
 
     # remove questionable annotations
@@ -98,14 +104,23 @@ if __name__ == '__main__':
 
         # check that the image and annotations exist before continuing
         if labelbox['processed'][ii]:
-            # retrieve image
-            dl_pass = download_image(labelbox['Labeled Data'][ii], os.path.join(img_dir, labelbox['External ID'][ii]))
 
-            if dl_pass:
-                # make the annotation xml
-                populate_voc(xml_template, out_dir, labelbox['External ID'][ii], labelbox['processed'][ii])
-            else:
+            if not labelbox['External ID'][ii] in img_base:
+
                 probs.append(labelbox['Labeled Data'][ii])
+                # retrieve image
+                try:
+                    dl_pass = download_image(labelbox['Labeled Data'][ii], os.path.join(img_dir, labelbox['External ID'][ii]))
+
+                    if dl_pass:
+                        # make the annotation xml
+                        populate_voc(xml_template, out_dir, labelbox['External ID'][ii], labelbox['processed'][ii])
+                    else:
+                        probs.append(labelbox['Labeled Data'][ii])
+                except ConnectionError:
+                    probs.append(labelbox['Labeled Data'][ii])
+            else:
+                populate_voc(xml_template, out_dir, labelbox['External ID'][ii], labelbox['processed'][ii])
 
     print('Done generating VOC, failed: ', len(probs))
     with open(os.path.join(out_dir, 'probs.txt'), 'w') as ff:
